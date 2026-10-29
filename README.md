@@ -1,6 +1,6 @@
 # COBOL Enterprise Banking and Settlement Engine
 
-[![COBOL Enterprise Banking CI](https://github.com/Hem1234567/cobol-check-automation/actions/workflows/ci.yml/badge.svg)](https://github.com/Hem1234567/cobol-check-automation/actions/workflows/ci.yml)
+[![COBOL Enterprise Banking CI](https://github.com/Hem1234567/cobol-banking-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Hem1234567/cobol-banking-engine/actions/workflows/ci.yml)
 
 A working, deterministic **GnuCOBOL batch banking simulator**: account master
 loading, transaction validation, deposits, withdrawals, account-to-account
@@ -431,7 +431,7 @@ explicit `needs` dependencies and timeouts:
 The required workflow uses `permissions: contents: read`, pinned official
 actions, no `continue-on-error`, and no secrets. It passed on GitHub Actions for
 commit `7ddb59e` (run
-[40884233940](https://github.com/Hem1234567/cobol-check-automation/actions/runs/40884233940)),
+[40884233940](https://github.com/Hem1234567/cobol-banking-engine/actions/runs/40884233940)),
 with all five jobs green. A later change requires its own run; inspect the
 Actions tab rather than assuming that an earlier run covers a newer commit.
 
@@ -457,7 +457,7 @@ Verified locally on Windows 11 with Git Bash, Python 3.10.11, and GnuCOBOL
 Also verified remotely:
 
 - GitHub Actions run
-  [40884233940](https://github.com/Hem1234567/cobol-check-automation/actions/runs/40884233940)
+  [40884233940](https://github.com/Hem1234567/cobol-banking-engine/actions/runs/40884233940)
   passed all five jobs for commit `7ddb59e`.
 
 Not verified:
