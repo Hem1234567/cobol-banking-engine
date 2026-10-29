@@ -1,0 +1,31 @@
+# Local toolchain downloads (GnuCOBOL portable build, 7-Zip, shellcheck)
+.tools/
+
+# Build products and compiler logs
+build/
+*.exe
+*.o
+*.so
+*.dylib
+*.dll
+
+# Ephemeral test and demo workspaces
+.work/
+output/*
+!output/.gitkeep
+
+# Generated reports and batch data (the committed sample data lives in data/)
+output/demo/
+output/failed/
+output/*.dat
+output/*.txt
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,86 @@
+COBOL ENTERPRISE BANKING ENGINE - SAMPLE EXPECTED RESULTS
+=========================================================
+Run id: DEMORUN001
+Process date: 2026-01-15
+Currency: USD
+
+INPUTS
+------
+Accounts: 6 records
+  ACC0000001  active checking   5,000.00
+  ACC0000002  active savings    2,500.00
+  ACC0000003  active checking   1,000.00
+  ACC0000004  closed checking     750.00
+  ACC0000005  active savings      100.00
+  duplicate ACC0000001           rejected with A0003
+
+Transactions: 19 records, processed in input order.
+
+ACCEPTED TRANSACTIONS
+---------------------
+seq  id             type        amount
+1    TXN000000001   DEPOSIT       250.00
+2    TXN000000002   WITHDRAWAL    500.00
+3    TXN000000003   TRANSFER      300.00   ACC0000001 -> ACC0000002
+10   TXN000000010   DEPOSIT        25.50
+
+REJECTED TRANSACTIONS
+---------------------
+seq  code    reason
+4    E0014   insufficient available funds
+5    E0014   insufficient available funds
+6    E0012   destination account not found
+7    E0010   source account closed
+8    E0006   zero amount
+9    E0003   duplicate transaction id
+11   E0004   unsupported transaction type
+12   E0005   malformed amount
+13   E0013   destination account closed
+14   E0009   source account not found
+15   E0015   source and destination are the same
+16   E0001   transaction record too short
+17   E0008   destination must be blank for deposit
+18   E0006   negative amount
+19   E0010   source account closed
+
+ACCOUNT RESULTS
+---------------
+Account       Opening      Debits      Credits     Closing     Entries
+ACC0000001  5,000.00      300.00      250.00      4,950.00      2
+ACC0000002  2,500.00      500.00      300.00      2,300.00      2
+ACC0000003  1,000.00        0.00        0.00      1,000.00      0
+ACC0000004    750.00        0.00        0.00        750.00      0
+ACC0000005    100.00        0.00       25.50        125.50      1
+
+LEDGER
+------
+5 entries:
+  CREDIT ACC0000001 250.00 for TXN000000001
+  DEBIT  ACC0000002 500.00 for TXN000000002
+  DEBIT  ACC0000001 300.00 for TXN000000003 (counterparty ACC0000002)
+  CREDIT ACC0000002 300.00 for TXN000000003 (counterparty ACC0000001)
+  CREDIT ACC0000005  25.50 for TXN000000010
+
+Totals
+------
+Deposits:             275.50
+Withdrawals:          500.00
+Transfers:            300.00
+Accepted value:     1,075.50
+Rejected nominal:   4,844.00  (absolute value of parseable rejected amounts)
+Ledger debits:        800.00
+Ledger credits:       575.50
+Opening balances:   9,350.00
+Closing balances:   9,125.50
+Net movement:        -224.50
+
+CHECKS
+------
+Accepted + rejected = 19
+Ledger entries = accepted (4) + transfers (1) = 5
+Closing - opening = deposits - withdrawals = -224.50
+Ledger credits - ledger debits = -224.50
+Every transfer has one matching DEBIT and CREDIT
+Every rejected transaction left both account balances unchanged
+reconciliation_status = BALANCED
+exit code = 0

@@ -1,0 +1,327 @@
+      >>SOURCE FORMAT FREE
+      *> ------------------------------------------------------------------
+      *> TESTVALID - portable COBOL unit tests for BNKVALID.
+      *>
+      *> The driver builds an in-memory account table and exercises accepted
+      *> and rejected validation paths. It writes PASS/FAIL lines and a final
+      *> machine-readable SUMMARY line; a failing test returns exit code 1.
+      *> ------------------------------------------------------------------
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TESTVALID.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       COPY "ACCOUNT.cpy".
+       COPY "TRANSACT.cpy".
+       COPY "INTERFACES.cpy".
+
+       01  WS-ACCOUNT-COUNT          PIC 9(04) COMP.
+       01  WS-ID-COUNT               PIC 9(04) COMP.
+       01  WS-TEST-COUNT             PIC 9(04) VALUE ZERO.
+       01  WS-FAIL-COUNT             PIC 9(04) VALUE ZERO.
+       01  WS-TEST-NAME              PIC X(40).
+       01  WS-EXPECTED-CODE          PIC X(06).
+
+       PROCEDURE DIVISION.
+       MAIN.
+           PERFORM SETUP-FIXTURES
+           PERFORM TEST-VALID-DEPOSIT
+           PERFORM TEST-DEPOSIT-ABOVE-BALANCE
+           PERFORM TEST-VALID-WITHDRAWAL
+           PERFORM TEST-VALID-TRANSFER
+           PERFORM TEST-INSUFFICIENT-WITHDRAWAL
+           PERFORM TEST-INSUFFICIENT-TRANSFER
+           PERFORM TEST-UNKNOWN-DESTINATION
+           PERFORM TEST-CLOSED-SOURCE
+           PERFORM TEST-CLOSED-DESTINATION
+           PERFORM TEST-ZERO-AMOUNT
+           PERFORM TEST-NEGATIVE-AMOUNT
+           PERFORM TEST-DUPLICATE-ID
+           PERFORM TEST-UNKNOWN-TYPE
+           PERFORM TEST-MALFORMED-AMOUNT
+           PERFORM TEST-SELF-TRANSFER
+           PERFORM TEST-DEPOSIT-WITH-DESTINATION
+           PERFORM TEST-MISSING-SOURCE
+           PERFORM TEST-INVALID-TRANSACTION-ID
+           PERFORM TEST-EXACT-FUNDS
+
+           DISPLAY "SUMMARY|TESTS=" WS-TEST-COUNT
+                   "|FAILURES=" WS-FAIL-COUNT
+               END-DISPLAY
+           IF WS-FAIL-COUNT > 0
+               MOVE 1 TO RETURN-CODE
+           END-IF
+           STOP RUN.
+
+      *> ------------------------------------------------------------------
+       SETUP-FIXTURES.
+           INITIALIZE ACCOUNT-TABLE ID-HISTORY
+           MOVE 3 TO WS-ACCOUNT-COUNT
+           MOVE ZERO TO WS-ID-COUNT
+
+           MOVE "ACC0000001" TO ACT-ID(1)
+           MOVE "CUST00000001" TO ACT-CUSTOMER-REF(1)
+           MOVE "A" TO ACT-STATUS(1)
+           MOVE "CH" TO ACT-TYPE(1)
+           MOVE 1000.00 TO ACT-OPENING-BAL(1) ACT-BALANCE(1)
+
+           MOVE "ACC0000002" TO ACT-ID(2)
+           MOVE "CUST00000002" TO ACT-CUSTOMER-REF(2)
+           MOVE "A" TO ACT-STATUS(2)
+           MOVE "SV" TO ACT-TYPE(2)
+           MOVE 500.00 TO ACT-OPENING-BAL(2) ACT-BALANCE(2)
+
+           MOVE "ACC0000003" TO ACT-ID(3)
+           MOVE "CUST00000003" TO ACT-CUSTOMER-REF(3)
+           MOVE "C" TO ACT-STATUS(3)
+           MOVE "CH" TO ACT-TYPE(3)
+           MOVE 100.00 TO ACT-OPENING-BAL(3) ACT-BALANCE(3).
+
+       RESET-TRANSACTION.
+           INITIALIZE TRANSACTION-FILE-RECORD VALIDATION-RESULT.
+
+       RUN-VALIDATOR.
+           CALL "BNKVALID" USING TRANSACTION-FILE-RECORD
+                                  ACCOUNT-TABLE
+                                  WS-ACCOUNT-COUNT
+                                  ID-HISTORY
+                                  WS-ID-COUNT
+                                  VALIDATION-RESULT
+           END-CALL.
+
+       CHECK-ACCEPTED.
+           ADD 1 TO WS-TEST-COUNT END-ADD
+           IF VLR-OK = "Y" AND VAL-ERROR-CODE = SPACES
+               DISPLAY "PASS|" FUNCTION TRIM(WS-TEST-NAME)
+                   END-DISPLAY
+           ELSE
+               ADD 1 TO WS-FAIL-COUNT END-ADD
+               DISPLAY "FAIL|" FUNCTION TRIM(WS-TEST-NAME)
+                       "|EXPECTED-ACCEPT|GOT=" VAL-ERROR-CODE
+                   END-DISPLAY
+           END-IF.
+
+       CHECK-REJECTED.
+           ADD 1 TO WS-TEST-COUNT END-ADD
+           IF VLR-OK = "N" AND VAL-ERROR-CODE = WS-EXPECTED-CODE
+               DISPLAY "PASS|" FUNCTION TRIM(WS-TEST-NAME)
+                   END-DISPLAY
+           ELSE
+               ADD 1 TO WS-FAIL-COUNT END-ADD
+               DISPLAY "FAIL|" FUNCTION TRIM(WS-TEST-NAME)
+                       "|EXPECTED=" WS-EXPECTED-CODE
+                       "|GOT=" VAL-ERROR-CODE
+                   END-DISPLAY
+           END-IF.
+
+      *> ------------------------------------------------------------------
+       TEST-VALID-DEPOSIT.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000001" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000000100.00" TO TXF-AMOUNT-TEXT
+           PERFORM RUN-VALIDATOR
+           MOVE "valid deposit accepted" TO WS-TEST-NAME
+           PERFORM CHECK-ACCEPTED.
+
+       TEST-DEPOSIT-ABOVE-BALANCE.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000019" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000005000.00" TO TXF-AMOUNT-TEXT
+           PERFORM RUN-VALIDATOR
+           MOVE "deposit larger than balance accepted" TO WS-TEST-NAME
+           PERFORM CHECK-ACCEPTED.
+
+       TEST-VALID-WITHDRAWAL.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000002" TO TXF-ID
+           MOVE "WITHDRAWAL" TO TXF-TYPE
+           MOVE "ACC0000002" TO TXF-SOURCE
+           MOVE "+000000200.00" TO TXF-AMOUNT-TEXT
+           PERFORM RUN-VALIDATOR
+           MOVE "valid withdrawal accepted" TO WS-TEST-NAME
+           PERFORM CHECK-ACCEPTED.
+
+       TEST-VALID-TRANSFER.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000003" TO TXF-ID
+           MOVE "TRANSFER" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "ACC0000002" TO TXF-DEST
+           MOVE "+000000150.00" TO TXF-AMOUNT-TEXT
+           PERFORM RUN-VALIDATOR
+           MOVE "valid transfer accepted" TO WS-TEST-NAME
+           PERFORM CHECK-ACCEPTED.
+
+       TEST-INSUFFICIENT-WITHDRAWAL.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000004" TO TXF-ID
+           MOVE "WITHDRAWAL" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000001001.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0014" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "insufficient withdrawal rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-INSUFFICIENT-TRANSFER.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000005" TO TXF-ID
+           MOVE "TRANSFER" TO TXF-TYPE
+           MOVE "ACC0000002" TO TXF-SOURCE
+           MOVE "ACC0000001" TO TXF-DEST
+           MOVE "+000000600.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0014" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "insufficient transfer rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-UNKNOWN-DESTINATION.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000006" TO TXF-ID
+           MOVE "TRANSFER" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "ACC9999999" TO TXF-DEST
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0012" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "unknown destination rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-CLOSED-SOURCE.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000007" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000003" TO TXF-SOURCE
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0010" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "closed source rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-CLOSED-DESTINATION.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000008" TO TXF-ID
+           MOVE "TRANSFER" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "ACC0000003" TO TXF-DEST
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0013" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "closed destination rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-ZERO-AMOUNT.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000009" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000000000.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0006" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "zero amount rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-NEGATIVE-AMOUNT.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000010" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "-000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0006" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "negative amount rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-DUPLICATE-ID.
+           PERFORM RESET-TRANSACTION
+           MOVE 1 TO WS-ID-COUNT
+           MOVE "TXN000000011" TO ID-HISTORY-ENTRY(1)
+           MOVE "TXN000000011" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0003" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "duplicate transaction id rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED
+           MOVE ZERO TO WS-ID-COUNT.
+
+       TEST-UNKNOWN-TYPE.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000012" TO TXF-ID
+           MOVE "INTEREST" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0004" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "unknown type rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-MALFORMED-AMOUNT.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000013" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+00000001X.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0005" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "malformed amount rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-SELF-TRANSFER.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000014" TO TXF-ID
+           MOVE "TRANSFER" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE TXF-DEST
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0015" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "self transfer rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-DEPOSIT-WITH-DESTINATION.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000015" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "ACC0000002" TO TXF-DEST
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0008" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "deposit destination rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-MISSING-SOURCE.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000016" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0007" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "missing source rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-INVALID-TRANSACTION-ID.
+           PERFORM RESET-TRANSACTION
+           MOVE "BAD000000017" TO TXF-ID
+           MOVE "DEPOSIT" TO TXF-TYPE
+           MOVE "ACC0000001" TO TXF-SOURCE
+           MOVE "+000000010.00" TO TXF-AMOUNT-TEXT
+           MOVE "E0002" TO WS-EXPECTED-CODE
+           PERFORM RUN-VALIDATOR
+           MOVE "invalid transaction id rejected" TO WS-TEST-NAME
+           PERFORM CHECK-REJECTED.
+
+       TEST-EXACT-FUNDS.
+           PERFORM RESET-TRANSACTION
+           MOVE "TXN000000018" TO TXF-ID
+           MOVE "WITHDRAWAL" TO TXF-TYPE
+           MOVE "ACC0000002" TO TXF-SOURCE
+           MOVE "+000000500.00" TO TXF-AMOUNT-TEXT
+           PERFORM RUN-VALIDATOR
+           MOVE "withdrawal of exact balance accepted" TO WS-TEST-NAME
+           PERFORM CHECK-ACCEPTED.

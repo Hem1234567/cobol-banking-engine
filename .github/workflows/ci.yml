@@ -1,0 +1,161 @@
+name: COBOL Enterprise Banking CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cobol-banking-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Repository and Workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck python3-yaml
+
+      - name: Validate required repository structure
+        run: python3 scripts/validate_repo.py
+
+      - name: Validate YAML syntax
+        run: python3 scripts/validate_yaml.py
+
+      - name: ShellCheck scripts
+        run: shellcheck -x scripts/*.sh
+
+  build:
+    name: Install GnuCOBOL and Compile
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version
+
+      - name: Compile all production COBOL programs
+        run: ./scripts/build.sh
+
+      - name: Upload compiler diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiler-diagnostics
+          path: build/logs/
+          if-no-files-found: warn
+
+  unit-integration-tests:
+    name: Run COBOL Tests and Banking Scenarios
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version
+
+      - name: Run COBOL unit and integration tests
+        run: ./scripts/test.sh
+
+      - name: Upload test reports and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobol-test-results
+          path: |
+            build/test-results.json
+            build/test-results.xml
+            build/logs/
+            build/test-work/
+          if-no-files-found: warn
+
+  end-to-end:
+    name: Run End-to-End Demo and Reconciliation
+    needs: unit-integration-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install GnuCOBOL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnucobol
+          cobc --version
+
+      - name: Run demo in a staging directory and publish on success
+        run: ./scripts/run_demo.sh
+
+      - name: Verify published reports and reconciliation
+        run: |
+          set -euo pipefail
+          test -f output/demo/run_status.dat
+          test ! -f output/demo/run_failure.dat
+          grep -q '^status=SUCCESS|' output/demo/run_status.dat
+          grep -q '^reconciliation_status|BALANCED$' output/demo/settlement.dat
+          python3 tests/verify_demo.py output/demo
+          for report in daily_transaction_report.txt account_balance_report.txt exception_report.txt settlement_report.txt reconciliation_report.txt; do
+            test -s "output/demo/$report"
+          done
+
+      - name: Confirm repeated demo is deterministic
+        run: |
+          set -euo pipefail
+          find output/demo -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/demo-first.sha"
+          ./scripts/run_demo.sh
+          find output/demo -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/demo-second.sha"
+          diff -u "$RUNNER_TEMP/demo-first.sha" "$RUNNER_TEMP/demo-second.sha"
+
+  documentation:
+    name: Validate Documentation and Examples
+    needs:
+      - validate
+      - build
+      - unit-integration-tests
+      - end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate README links, required docs, and example files
+        run: python3 scripts/validate_docs.py
+
+      - name: Verify no credentials or mainframe requirement leaked into CI
+        run: |
+          set -euo pipefail
+          test -f data/sample/accounts.dat
+          test -f data/sample/transactions.dat
+          test -f examples/jcl/BNKSAMPLE.jcl
+          test -f docs/KNOWN_LIMITATIONS.md
+          if grep -Eq '(ZOS_PASSWORD|ZOWE_OPT_PASSWORD|secrets\.)' .github/workflows/ci.yml; then
+            echo "The required CI workflow must not use credentials."
+            exit 1
+          fi
+          echo "DOCS|PASS|required files and credential-free CI verified"

@@ -1,0 +1,135 @@
+name: Optional IBM z/OS Upload Integration
+
+# This workflow is OPTIONAL and is not part of the required CI workflow.
+# It verifies byte-identical transfer of sources to a dedicated USS directory.
+# It does not compile, link, or execute anything on z/OS.
+#
+# Required repository secrets:
+#   ZOS_HOST, ZOS_PORT, ZOS_USER, ZOS_PASSWORD
+# Optional repository variables:
+#   ZOS_REJECT_UNAUTHORIZED (default true), ZOS_PROTOCOL (default https)
+#
+# The workflow has NOT been validated against a real z/OS environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      uss_dir:
+        description: "Dedicated, pre-created USS directory (absolute path)"
+        required: true
+        type: string
+      confirm_upload:
+        description: "I confirm this is a dedicated non-production test directory"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cobol-banking-zos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check Manual Dispatch Prerequisites
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    env:
+      ZOS_HOST: ${{ secrets.ZOS_HOST }}
+      ZOS_PORT: ${{ secrets.ZOS_PORT }}
+      ZOS_USER: ${{ secrets.ZOS_USER }}
+      ZOS_PASSWORD: ${{ secrets.ZOS_PASSWORD }}
+      USS_DIR: ${{ inputs.uss_dir }}
+      CONFIRM_UPLOAD: ${{ inputs.confirm_upload }}
+    steps:
+      - name: Validate secrets and dedicated directory input without printing values
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ZOS_HOST ZOS_PORT ZOS_USER ZOS_PASSWORD USS_DIR; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required value for $name."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Configure the documented repository secrets and USS directory input."
+            exit 1
+          fi
+          if [ "$CONFIRM_UPLOAD" != "true" ]; then
+            echo "Manual confirmation is required."
+            exit 1
+          fi
+          if ! [[ "$USS_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+            echo "USS_DIR must be an absolute path using only letters, digits, dot, underscore, slash, or hyphen."
+            exit 1
+          fi
+          if [ "$USS_DIR" = "/" ] || [ "$USS_DIR" = "/tmp" ] || [ "$USS_DIR" = "/u" ]; then
+            echo "USS_DIR must be a dedicated child directory, not a shared root."
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+  upload:
+    name: Upload and Verify Sources on USS
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ZOWE_OPT_HOST: ${{ secrets.ZOS_HOST }}
+      ZOWE_OPT_PORT: ${{ secrets.ZOS_PORT }}
+      ZOWE_OPT_USER: ${{ secrets.ZOS_USER }}
+      ZOWE_OPT_PASSWORD: ${{ secrets.ZOS_PASSWORD }}
+      ZOWE_OPT_REJECT_UNAUTHORIZED: ${{ vars.ZOS_REJECT_UNAUTHORIZED || 'true' }}
+      ZOWE_OPT_PROTOCOL: ${{ vars.ZOS_PROTOCOL || 'https' }}
+      USS_DIR: ${{ inputs.uss_dir }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pinned Zowe CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Zowe CLI
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/zowe" @zowe/cli@8.41.1 --no-audit --no-fund
+          echo "$RUNNER_TEMP/zowe/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/zowe/node_modules/.bin/zowe" --version
+
+      - name: Validate connectivity and authentication
+        run: |
+          set -euo pipefail
+          zowe zos-files list uss-files "$USS_DIR"
+
+      - name: Upload production sources and verify binary round-trip
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/zos-roundtrip"
+          mapfile -t files < <(find src/main/cobol -type f \( -name '*.CBL' -o -name '*.cpy' \) | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No COBOL sources found."
+            exit 1
+          fi
+          count=0
+          for file in "${files[@]}"; do
+            name="$(basename "$file")"
+            remote="$USS_DIR/$name"
+            local_copy="$RUNNER_TEMP/zos-roundtrip/$name"
+            zowe zos-files upload file-to-uss "$file" "$remote" --binary --make-dir
+            zowe zos-files download uss-file "$remote" --binary --file "$local_copy" --overwrite
+            cmp "$file" "$local_copy"
+            count=$((count + 1))
+          done
+          echo "ZOS_INTEGRATION|UPLOAD_VERIFIED|files=$count"
+          echo "ZOS_INTEGRATION|NOT_COMPILED|Transfer verification does not prove z/OS compilation or execution."

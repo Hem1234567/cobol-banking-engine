@@ -1,0 +1,11 @@
+# Keep the working tree LF so ShellCheck, COBOL source, and CI agree.
+* text=auto eol=lf
+*.CBL text eol=lf
+*.cpy text eol=lf
+*.dat text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.jcl text eol=lf

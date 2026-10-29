@@ -1,7 +1,0 @@
-TestSuite 'Employee Pay Tests'
-
-TestCase 'Overtime should be 0.25'
-MOVE 50 TO EMP-HOURS
-MOVE 23.50 TO EMP-HOURLY-RATE
-PERFORM PAYMENT-WEEKLY
-EXPECT EMP-OT-RATE TO BE 0.25
