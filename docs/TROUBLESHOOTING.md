@@ -51,6 +51,14 @@ Python 3.10 or newer is required by the type syntax in the test harness.
 If a different GnuCOBOL version emits a version-specific warning, fix the source
 or record the version compatibility issue explicitly.
 
+On some Ubuntu GnuCOBOL packages, `cobc --info` contains both
+`-D_FORTIFY_SOURCE=2` and `-D_FORTIFY_SOURCE=3`; GCC then emits
+`_FORTIFY_SOURCE redefined` for every generated C module. This is a
+distribution-package configuration issue, not a COBOL source warning. The
+scripts override `COB_CFLAGS` on Linux with a single definition when the caller
+has not supplied flags. If you set `COB_CFLAGS` yourself, make sure it contains
+only one `_FORTIFY_SOURCE` definition.
+
 ### ShellCheck is not installed
 
 ```bash

@@ -24,6 +24,14 @@ if [ -z "$COBC" ]; then
     echo "TEST|FAIL|GnuCOBOL cobc was not found" >&2
     exit 127
 fi
+# Ubuntu's GnuCOBOL package may carry duplicate _FORTIFY_SOURCE
+# definitions in COB_CFLAGS, which makes GCC emit a warning for every
+# generated C module. Override it with a single definition when the caller
+# has not selected flags explicitly.
+if [ "$(uname -s 2>/dev/null || echo unknown)" = "Linux" ] && [ -z "${COB_CFLAGS:-}" ]; then
+    export COB_CFLAGS="-O2 -finline-functions -D_FORTIFY_SOURCE=2 -Wno-unused -fsigned-char -Wno-pointer-sign"
+fi
+
 export BNK_COBC="$COBC"
 
 if [ "${BNK_SKIP_BUILD:-0}" != "1" ]; then
