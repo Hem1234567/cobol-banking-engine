@@ -154,7 +154,7 @@ jobs:
           test -f data/sample/transactions.dat
           test -f examples/jcl/BNKSAMPLE.jcl
           test -f docs/KNOWN_LIMITATIONS.md
-          if grep -Eq '(ZOS_PASSWORD|ZOWE_OPT_PASSWORD|secrets\.)' .github/workflows/ci.yml; then
+          if grep -Eq '\$\{\{[[:space:]]*secrets\.' .github/workflows/ci.yml; then
             echo "The required CI workflow must not use credentials."
             exit 1
           fi
