@@ -1,5 +1,7 @@
 # COBOL Enterprise Banking and Settlement Engine
 
+[![COBOL Enterprise Banking CI](https://github.com/Hem1234567/cobol-check-automation/actions/workflows/ci.yml/badge.svg)](https://github.com/Hem1234567/cobol-check-automation/actions/workflows/ci.yml)
+
 A working, deterministic **GnuCOBOL batch banking simulator**: account master
 loading, transaction validation, deposits, withdrawals, account-to-account
 transfers, an auditable ledger, end-of-day settlement, reconciliation, and
@@ -427,9 +429,11 @@ explicit `needs` dependencies and timeouts:
 5. **documentation** — README links, required docs, credential-free CI checks.
 
 The required workflow uses `permissions: contents: read`, pinned official
-actions, no `continue-on-error`, and no secrets. It has **not been executed on
-GitHub Actions in this environment**; local commands are the same commands the
-workflow invokes. Do not infer a green CI run until a real run is inspected.
+actions, no `continue-on-error`, and no secrets. It passed on GitHub Actions for
+commit `7ddb59e` (run
+[40884233940](https://github.com/Hem1234567/cobol-check-automation/actions/runs/40884233940)),
+with all five jobs green. A later change requires its own run; inspect the
+Actions tab rather than assuming that an earlier run covers a newer commit.
 
 The optional [.github/workflows/zos-integration.yml](.github/workflows/zos-integration.yml)
 requires manual dispatch and repository secrets. It uploads sources to a
@@ -450,9 +454,14 @@ Verified locally on Windows 11 with Git Bash, Python 3.10.11, and GnuCOBOL
 - YAML parser validation and documentation checks are run locally where
   described above.
 
-Not verified locally:
+Also verified remotely:
 
-- GitHub Actions execution (no remote runner was available);
+- GitHub Actions run
+  [40884233940](https://github.com/Hem1234567/cobol-check-automation/actions/runs/40884233940)
+  passed all five jobs for commit `7ddb59e`.
+
+Not verified:
+
 - a real IBM z/OS compile, link, or execution;
 - the optional Zowe upload workflow.
 

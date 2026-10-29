@@ -249,8 +249,8 @@ project does none of those things to production standard.
 GnuCOBOL 3.2.0 local build; 19 validation unit cases; 9 processor unit cases;
 8 integration scenarios including a large deposit, empty input, invalid
 accounts, over-long input, fatal missing files, rerun refusal, and deterministic
-repeat runs; independent ledger/account reconciliation. I did not test GitHub
-Actions remotely or z/OS.
+repeat runs; independent ledger/account reconciliation. The required GitHub
+Actions workflow passed remotely for commit `7ddb59e`; I did not test z/OS.
 
 ## Recruiter-Friendly Summary
 
@@ -270,7 +270,7 @@ Actions remotely or z/OS.
 | Unit tests | Verified locally |
 | Integration and demo | Verified locally |
 | Determinism | Verified byte-for-byte in harness |
-| GitHub Actions | Configured, not run remotely here |
+| GitHub Actions | Full remote run passed for `7ddb59e` |
 | IBM z/OS compile/link/run | Not tested |
 | Zowe upload | Configured, not connected to real z/OSMF |
 | VSAM/DB2/CICS | Conceptual only |

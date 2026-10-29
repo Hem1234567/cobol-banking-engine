@@ -83,8 +83,8 @@ as production readiness.
 - Tests are deterministic and small; they are not a load test.
 - No fault-injection test for disk-full, power loss, or concurrent writers.
 - No test on IBM Enterprise COBOL or z/OS.
-- GitHub Actions was not executed in the local environment; the workflow syntax
-  and commands were validated locally, but a real remote run is still required.
+- GitHub Actions passed remotely for commit `7ddb59e`; any later commit needs
+  its own remote run. GitHub Actions is not executed by the local test harness.
 - The optional Zowe upload workflow has not been connected to a real z/OSMF
   endpoint.
 - No fuzzing of arbitrary binary input.
@@ -93,8 +93,9 @@ as production readiness.
 
 - **Tested locally:** GnuCOBOL 3.2.0 compile, 36 automated tests, demo and
   independent reconciliation.
-- **Not tested:** GitHub Actions remote execution, z/OS compile/link/run,
-  VSAM/DB2/CICS, Zowe upload.
+- **Tested remotely:** the required GitHub Actions workflow passed for commit
+  `7ddb59e` (all five jobs).
+- **Not tested:** z/OS compile/link/run, VSAM/DB2/CICS, Zowe upload.
 - Uploading a file is not evidence of compilation or execution.
 - The standard CI workflow does not require a mainframe, credentials, or a
   network service.
